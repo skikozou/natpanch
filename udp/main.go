@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -156,14 +157,28 @@ func decodeToken(encoded string) (*Token, error) {
 
 	logrus.WithField("decoded", decoded).Info("enc52 decode success")
 
-	var token Token
-	n, err := fmt.Sscanf(decoded, "%s?%d?%d", &token.IP, &token.Port, &token.Timestamp)
+	parts := strings.Split(decoded, "?")
+	if len(parts) != 3 {
+		logrus.WithField("parts", len(parts)).Error("invalid token format")
+		return nil, fmt.Errorf("invalid token format: expected 3 parts, got %d", len(parts))
+	}
+
+	port, err := strconv.ParseUint(parts[1], 10, 16)
 	if err != nil {
-		logrus.WithError(err).
-			WithField("decoded", decoded).
-			WithField("scanned_fields", n).
-			Error("sscanf failed")
-		return nil, fmt.Errorf("failed to parse token (scanned %d fields): %w", n, err)
+		logrus.WithError(err).WithField("port_str", parts[1]).Error("invalid port")
+		return nil, fmt.Errorf("invalid port: %w", err)
+	}
+
+	timestamp, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		logrus.WithError(err).WithField("timestamp_str", parts[2]).Error("invalid timestamp")
+		return nil, fmt.Errorf("invalid timestamp: %w", err)
+	}
+
+	token := &Token{
+		IP:        parts[0],
+		Port:      uint16(port),
+		Timestamp: timestamp,
 	}
 
 	logrus.WithFields(logrus.Fields{
@@ -172,7 +187,7 @@ func decodeToken(encoded string) (*Token, error) {
 		"timestamp": token.Timestamp,
 	}).Debug("token parsed successfully")
 
-	return &token, nil
+	return token, nil
 }
 
 func holePunch(client *Client, peerAddr *net.UDPAddr) error {
