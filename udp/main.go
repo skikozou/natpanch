@@ -125,6 +125,18 @@ func (t *Token) IsExpired(maxAge time.Duration) bool {
 	return age > maxAge
 }
 
+func getOutboundIP() (net.IP, error) {
+	// ダミー接続を作って自分の外部向けIPを取得
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP, nil
+}
+
 func encodeToken(token *Token) string {
 	raw := fmt.Sprintf("%s?%d?%d", token.IP, token.Port, token.Timestamp)
 	logrus.WithField("raw", raw).Debug("encoding token")
@@ -206,7 +218,7 @@ func communicationLoop(client *Client) {
 				return
 			}
 
-			logrus.WithField("from", addr).Infof("Received: %s", string(buf[:n]))
+			fmt.Printf("\n[%s] %s", addr, string(buf[:n]))
 		}
 	}()
 
@@ -225,7 +237,7 @@ func communicationLoop(client *Client) {
 }
 
 func logrusInit() {
-	logrus.SetLevel(logrus.DebugLevel) // Info → Debug に変更
+	logrus.SetLevel(logrus.DebugLevel)
 	logrus.SetFormatter(&logrus.TextFormatter{
 		ForceColors:            true,
 		DisableLevelTruncation: true,
@@ -238,7 +250,14 @@ func main() {
 	logrusInit()
 	logrus.Info("UDP Hole Punching Client")
 
-	// 1. UDPソケット作成（リスニング）
+	// 1. 自分の外部向けIPを取得
+	myIP, err := getOutboundIP()
+	if err != nil {
+		logrus.WithError(err).Fatal("failed to get outbound IP")
+	}
+	logrus.WithField("ip", myIP).Info("detected outbound IP")
+
+	// 2. UDPソケット作成（リスニング）
 	client, err := NewClientListen(":0") // ランダムポート
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to create client")
@@ -248,8 +267,12 @@ func main() {
 	localAddr := client.LocalAddr()
 	logrus.WithField("address", localAddr).Info("listening on")
 
-	// 2. 自分のトークン生成
-	myToken := GenerateToken(localAddr)
+	// 3. 自分のトークン生成（IPを実際のものに置き換え）
+	myToken := &Token{
+		IP:        myIP.String(),
+		Port:      uint16(localAddr.Port),
+		Timestamp: time.Now().Unix(),
+	}
 	logrus.WithFields(logrus.Fields{
 		"ip":        myToken.IP,
 		"port":      myToken.Port,
@@ -262,7 +285,7 @@ func main() {
 	fmt.Printf("Your token: %s\n", encodedToken)
 	fmt.Println("========================================")
 
-	// 3. 相手のトークン入力待ち
+	// 4. 相手のトークン入力待ち
 	fmt.Print("\nEnter peer token: ")
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
@@ -271,7 +294,7 @@ func main() {
 	peerTokenStr := strings.TrimSpace(scanner.Text())
 	logrus.WithField("input", peerTokenStr).Debug("received peer token input")
 
-	// 4. 相手トークンデコード
+	// 5. 相手トークンデコード
 	peerToken, err := decodeToken(peerTokenStr)
 	if err != nil {
 		logrus.WithError(err).Fatal("failed to decode peer token")
@@ -285,18 +308,18 @@ func main() {
 	peerAddr := peerToken.ToAddr()
 	logrus.WithField("peer", peerAddr).Info("peer address resolved")
 
-	// 5. ホールパンチング開始
+	// 6. ホールパンチング開始
 	err = holePunch(client, peerAddr)
 	if err != nil {
 		logrus.WithError(err).Fatal("hole punching failed")
 	}
 
-	// 6. 接続確立
+	// 7. 接続確立
 	logrus.Info("Connection established!")
 
 	// タイムアウト解除
 	client.SetReadDeadline(time.Time{})
 
-	// 7. データ送受信ループ
+	// 8. データ送受信ループ
 	communicationLoop(client)
 }
