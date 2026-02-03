@@ -131,6 +131,9 @@ func encodeToken(token *Token) string {
 
 func decodeToken(encoded string) (*Token, error) {
 	decoded, err := enc52.Decode(encoded)
+	if err != nil {
+		return nil, err
+	}
 
 	var token Token
 	_, err = fmt.Sscanf(decoded, "%s:%d:%d", &token.IP, &token.Port, &token.Timestamp)
