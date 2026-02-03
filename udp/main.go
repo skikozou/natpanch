@@ -133,7 +133,7 @@ func decodeToken(encoded string) (*Token, error) {
 	decoded, err := enc52.Decode(encoded)
 
 	var token Token
-	_, err := fmt.Sscanf(decoded, "%s:%d:%d", &token.IP, &token.Port, &token.Timestamp)
+	_, err = fmt.Sscanf(decoded, "%s:%d:%d", &token.IP, &token.Port, &token.Timestamp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode token: %w", err)
 	}
