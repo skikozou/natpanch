@@ -126,22 +126,40 @@ func (t *Token) IsExpired(maxAge time.Duration) bool {
 }
 
 func encodeToken(token *Token) string {
-	return enc52.Encode(fmt.Sprintf("%s?%d?%d", token.IP, token.Port, token.Timestamp))
+	raw := fmt.Sprintf("%s?%d?%d", token.IP, token.Port, token.Timestamp)
+	logrus.WithField("raw", raw).Debug("encoding token")
+	encoded := enc52.Encode(raw)
+	logrus.WithField("encoded", encoded).Debug("token encoded")
+	return encoded
 }
 
 func decodeToken(encoded string) (*Token, error) {
+	logrus.WithField("encoded", encoded).Debug("decoding token")
+
 	decoded, err := enc52.Decode(encoded)
 	if err != nil {
-		return nil, err
+		logrus.WithError(err).Error("enc52 decode failed")
+		return nil, fmt.Errorf("enc52 decode failed: %w", err)
 	}
 
-	logrus.Info("decoded: " + decoded)
+	logrus.WithField("decoded", decoded).Info("enc52 decode success")
 
 	var token Token
-	_, err = fmt.Sscanf(decoded, "%s?%d?%d", &token.IP, &token.Port, &token.Timestamp)
+	n, err := fmt.Sscanf(decoded, "%s?%d?%d", &token.IP, &token.Port, &token.Timestamp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode token: %w", err)
+		logrus.WithError(err).
+			WithField("decoded", decoded).
+			WithField("scanned_fields", n).
+			Error("sscanf failed")
+		return nil, fmt.Errorf("failed to parse token (scanned %d fields): %w", n, err)
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"ip":        token.IP,
+		"port":      token.Port,
+		"timestamp": token.Timestamp,
+	}).Debug("token parsed successfully")
+
 	return &token, nil
 }
 
@@ -207,7 +225,7 @@ func communicationLoop(client *Client) {
 }
 
 func logrusInit() {
-	logrus.SetLevel(logrus.InfoLevel)
+	logrus.SetLevel(logrus.DebugLevel) // Info → Debug に変更
 	logrus.SetFormatter(&logrus.TextFormatter{
 		ForceColors:            true,
 		DisableLevelTruncation: true,
@@ -232,6 +250,12 @@ func main() {
 
 	// 2. 自分のトークン生成
 	myToken := GenerateToken(localAddr)
+	logrus.WithFields(logrus.Fields{
+		"ip":        myToken.IP,
+		"port":      myToken.Port,
+		"timestamp": myToken.Timestamp,
+	}).Debug("generated token")
+
 	encodedToken := encodeToken(myToken)
 
 	fmt.Println("========================================")
@@ -245,6 +269,7 @@ func main() {
 		logrus.Fatal("failed to read input")
 	}
 	peerTokenStr := strings.TrimSpace(scanner.Text())
+	logrus.WithField("input", peerTokenStr).Debug("received peer token input")
 
 	// 4. 相手トークンデコード
 	peerToken, err := decodeToken(peerTokenStr)
