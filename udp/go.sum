@@ -1,0 +1,6 @@
+github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w=
+github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
+github.com/skikozou/enc52 v0.0.0-20250813002253-d56c81c80cb5 h1:v3KQaJ/gbH0Twq6y26NTqc/2roOOtOUYpe3f64htenk=
+github.com/skikozou/enc52 v0.0.0-20250813002253-d56c81c80cb5/go.mod h1:V823+eKMUW5C4wYhV6GIxVBJAoZa8vG4smOmnqCwcZM=
+golang.org/x/sys v0.13.0 h1:Af8nKPmuFypiUBjVoU9V20FiaFXOcuZI21p0ycVYYGE=
+golang.org/x/sys v0.13.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
